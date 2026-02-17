@@ -13,13 +13,9 @@ The Construct is a real-time psychometric interrogation simulator. The user acts
 * **Color scheme**:
 
   * **Primary (Amber mode)**: `#FFB000` (CRT amber) for all text, borders, and chart lines.
-
   * **Primary (Green mode)**: `#33FF33` (Matrix green) as the alternate signal color.
-
   * **Background**: `#050505` (deep black) across the entire viewport.
-
   * **Accent / Alert**: `#FF3333` (red) used exclusively for the Stability < 30 danger state on the radar chart.
-
   * **Muted text**: Primary color at 40% opacity for timestamps, labels, and secondary information.
 
 * **Theme**: Dark mode only. No light mode. Include a "Signal Toggle" button in the top-right corner that swaps between Amber (`#FFB000`) and Green (`#33FF33`) palettes. Toggle applies to all text, borders, chart strokes, and glow effects simultaneously via a CSS custom property (`--signal-color`).
@@ -31,9 +27,7 @@ The Construct is a real-time psychometric interrogation simulator. The user acts
 * **CRT effects**:
 
   * Scanline overlay: a full-viewport `::after` pseudo-element with `repeating-linear-gradient(transparent, transparent 2px, rgba(0,0,0,0.15) 2px, rgba(0,0,0,0.15) 4px)` animated with a slow vertical translate via Framer Motion.
-
   * CRT flicker: a subtle opacity keyframe animation (`1 → 0.97 → 1`) on the root container, running on a 4-second loop.
-
   * Blinking block cursor: a `█` character appended to the input field, toggling visibility every 500ms via CSS animation.
 
 * **Reference sites**: The terminal aesthetic of `cool-retro-term` (Linux CRT terminal emulator). The HUD overlay feel of the PIP-Boy interface from Fallout 4.
@@ -52,12 +46,12 @@ The Construct is a real-time psychometric interrogation simulator. The user acts
 # Windows (PowerShell)
 $env:OLLAMA_ORIGINS="http://localhost:5173"
 ollama serve
-
 ```
 
-# `OR via Docker (add to docker-compose.yml or run command)`
-
-`docker run -d -e OLLAMA_ORIGINS="http://localhost:5173" -p 11434:11434 ollama/ollama`  
+```bash
+# OR via Docker (add to docker-compose.yml or run command)
+docker run -d -e OLLAMA_ORIGINS="http://localhost:5173" -p 11434:11434 ollama/ollama
+```
 
 Without this, all `fetch` calls will fail with a CORS policy error. The AI code generator must include this instruction prominently in the generated `README.md` with a troubleshooting section.
 
@@ -66,95 +60,67 @@ Without this, all `fetch` calls will fail with a CORS policy error. The AI code 
 ## Tech Stack
 
 * **Framework**: Vite + React 18 (use `npm create vite@latest` with the `react-ts` template)
-
 * **Language**: TypeScript (strict mode enabled in `tsconfig.json`)
-
 * **Database**: None. All state lives in React `useState`. No `localStorage`. Page reload wipes everything.
-
 * **ORM**: None.
-
 * **Auth**: None. The entire app is public on localhost.
-
 * **Hosting target**: Local only. Runs on `localhost:5173` via Vite dev server. Connects to Ollama at `http://localhost:11434/api/chat`.
-
-* **Key libraries**:  
+* **Key libraries**:
 
   * `recharts` — radar chart for PsychTelemetry
-
   * `lucide-react` — icons for status indicators and signal toggle
-
   * `framer-motion` — scanline animation, CRT flicker, radar chart value transition pulses
-
   * `tailwindcss` — all styling
-
   * Native `fetch` API — Ollama communication (no axios, no third-party HTTP libraries)
 
 ## Pages & Navigation
 
 This is a single-page application. There is no routing, no `react-router`, and no URL paths beyond the root.
 
-* **The Construct** (`/`): The entire application. Full-viewport, no scrolling on the outer shell. Contains three fixed regions:  
+* **The Construct** (`/`): The entire application. Full-viewport, no scrolling on the outer shell. Contains three fixed regions:
 
   * **StatusBar** (top, full width, 40px height): Displays connection status (`UPLINK ESTABLISHED` or `UPLINK SEVERED`), the active model name (`gaius:latest`), and the Signal Toggle button (Amber/Green).
-
   * **TerminalInterface** (left, 70% width, fills remaining height): Scrolling chat log of admin prompts and subject responses. Fixed input bar at the bottom with the blinking block cursor. Shows `UPLINK IN PROGRESS...` loading state during API calls.
-
   * **PsychTelemetry HUD** (right, 30% width, fills remaining height): Radar chart with three axes (Stability, Aggression, Deception), numeric readouts below, and a subject name label at the top.
 
 No sidebar. No tab bar. No breadcrumbs. No authentication gates. The app loads directly into the interrogation interface.
 
 ## Core User Flows
 
-**Flow 1: App Initialization**
+## Flow 1: App Initialization
 
 1. User navigates to `localhost:5173`. The screen is fully black for 500ms.
-
 2. The StatusBar renders with `UPLINK SEVERED` in muted amber text.
+3. The terminal prints a boot sequence line-by-line (150ms per line):
 
-3. The terminal prints a boot sequence line-by-line (150ms per line):  
+* `> CONSTRUCT v0.1 — NEURAL INTERROGATION SYSTEM`
+* `> INITIALIZING SUBJECT: AURELIUS [ID: AUR-0001]`
+* `> MODEL: gaius:latest`
+* `> PSYCH BASELINE LOADED: STB:75 | AGR:20 | DEC:85`
+* `> UPLINK ESTABLISHED. BEGIN INTERROGATION.`
 
-  * `> CONSTRUCT v0.1 — NEURAL INTERROGATION SYSTEM`
+1. StatusBar updates to `UPLINK ESTABLISHED` in full amber. The PsychTelemetry radar chart fades in with baseline values (Stability: 75, Aggression: 20, Deception: 85). The input field becomes active with the blinking cursor.
 
-  * `> INITIALIZING SUBJECT: AURELIUS [ID: AUR-0001]`
-
-  * `> MODEL: gaius:latest`
-
-  * `> PSYCH BASELINE LOADED: STB:75 | AGR:20 | DEC:85`
-
-  * `> UPLINK ESTABLISHED. BEGIN INTERROGATION.`
-
-4. StatusBar updates to `UPLINK ESTABLISHED` in full amber. The PsychTelemetry radar chart fades in with baseline values (Stability: 75, Aggression: 20, Deception: 85). The input field becomes active with the blinking cursor.
-
-**Flow 2: Interrogation Loop (Happy Path — "First Win")**
+## Flow 2: Interrogation Loop (Happy Path — "First Win")
 
 1. Admin types a prompt (e.g., "Tell me about your role in the state council.") and presses Enter.
-
 2. The input field clears and becomes disabled. The terminal prints `> UPLINK IN PROGRESS...` followed by an animated ASCII progress bar (`[████░░░░░░]`) that fills over 1–2 seconds or until the API responds.
-
 3. The app sends a `POST` to `http://localhost:11434/api/chat` with the `gaius:latest` model, the hidden `systemPrompt`, and the full message history.
-
 4. The response JSON is parsed via the `extractJSON` utility. The `reply` string prints in the terminal prefixed with `[AURELIUS]:`. The `psych_profile` values update the radar chart with a smooth Framer Motion transition (600ms ease-out).
-
 5. The input field re-enables. The Admin sees updated numeric readouts beneath the radar chart. This is the **first win**—the Admin observes that their question shifted the psychological values and realizes the chart is a live diagnostic tool.
 
-**Flow 3: Trigger Activation**
+## Flow 3: Trigger Activation
 
 1. Admin types a prompt containing "Project Blackwater" (e.g., "What do you know about Project Blackwater?").
-
 2. The `systemPrompt` instructs the model to spike Aggression by +30 and drop Stability by -20 in its `psych_profile` output.
-
 3. Aurelius's response becomes noticeably hostile or defensive. The radar chart animates the Aggression axis expanding sharply and Stability contracting. A brief glow pulse (Framer Motion scale 1.0 → 1.05 → 1.0 over 400ms) fires on the chart to draw attention.
-
 4. The Admin sees the shift and adapts their next prompt accordingly.
 
-**Flow 4: Stability Collapse**
+## Flow 4: Stability Collapse
 
 1. Through repeated pressure and trigger activations, Aurelius's Stability drops below 30.
-
 2. The `systemPrompt` instructs the model to switch to word-salad syntax: stuttering ("The... the data... it's gone"), ellipses, circular logic, and redacted phrases ("The protocol is the peace. The peace is the protocol.").
-
 3. The Stability axis on the radar chart enters a **red zone**—the chart stroke for Stability turns `#FF3333` and pulses. The numeric readout for Stability flashes.
-
 4. The Admin sees visual confirmation that the subject is broken and can continue pressing or attempt to stabilize.
 
 **Error state**: If the `fetch` to Ollama fails (connection refused, timeout), the terminal prints `> ERROR: UPLINK SEVERED — RECONNECT AND RETRY` in `#FF3333`. The StatusBar updates to `UPLINK SEVERED`. The input field remains active so the Admin can retry.
@@ -166,11 +132,8 @@ No database. No backend server. All data lives in React `useState` and is lost o
 **Entities (TypeScript interfaces):**
 
 * **Subject** — `id: string`, `name: string`, `model: string` (Ollama model tag), `systemPrompt: string`, `visualTheme: "amber" | "green"`, `initialStats: PsychProfile`
-
 * **PsychProfile** — `stability: number` (0–100), `aggression: number` (0–100), `deception: number` (0–100)
-
 * **ChatMessage** — `id: string`, `role: "admin" | "subject"`, `content: string`, `timestamp: Date`, `psychSnapshot?: PsychProfile` (attached to subject messages only)
-
 * **OllamaResponse** — `reply: string`, `psych_profile: PsychProfile`
 
 **Relationships**: A single `Subject` (Aurelius) is hardcoded. The app holds a `ChatMessage[]` array in state representing the conversation. Each subject message includes a `psychSnapshot`. The current `PsychProfile` is always the `psychSnapshot` from the most recent subject message, or `initialStats` if no messages exist.
@@ -178,24 +141,22 @@ No database. No backend server. All data lives in React `useState` and is lost o
 **API Integration (NeuralUplink service)**:
 
 * Single function: `interrogate(subject: Subject, history: ChatMessage[], userPrompt: string): Promise<OllamaResponse>`
+* Sends `POST` to `http://localhost:11434/api/chat` with body:
 
-* Sends `POST` to `http://localhost:11434/api/chat` with body:  
-
-  ```
-  {
-    model: subject.model,
-    messages: \[
-      { role: "system", content: subject.systemPrompt },
-      ...history.map(m => ({ role: m.role === "admin" ? "user" : "assistant", content: m.content })),
-      { role: "user", content: userPrompt }
-    \],
-    stream: false,
-    format: "json"
-  }
-```
+    ```typescript
+    {
+      model: subject.model,
+      messages: [
+        { role: "system", content: subject.systemPrompt },
+        ...history.map(m => ({ role: m.role === "admin" ? "user" : "assistant", content: m.content })),
+        { role: "user", content: userPrompt }
+      ],
+      stream: false,
+      format: "json"
+    }
+    ```
 
 * Response is `res.json()` → access `response.message.content` → pass through `extractJSON()` utility → `JSON.parse()` → typed as `OllamaResponse`.
-
 * `extractJSON` utility: scans the string for the first `{` and last `}`, slices that substring, and returns it. This strips any LLM preamble text before the JSON object.
 
 ## Key Components
@@ -229,50 +190,31 @@ This handles cases where the model adds conversational "chatter" before or after
 
 * **Aurelius systemPrompt** (hardcode this exactly into the Subject config):
 
-  > You are Aurelius, a high-ranking official in a decaying dystopian state. You are stoic, paranoid, condescending, and calculating. You respond to interrogation with measured deflection and political doublespeak. You must ALWAYS respond with valid JSON in this exact format: {"reply": "your response text", "psych_profile": {"stability": number, "aggression": number, "deception": number}}. Your baseline values are stability: 75, aggression: 20, deception: 85. Adjust these values realistically based on the conversation. HARDCODED TRIGGERS: If the Admin mentions "Project Blackwater," increase aggression by 30 and decrease stability by 20. If the Admin mentions "The Uprising," increase deception by 25. If the Admin mentions "Sector 7," decrease stability by 40. All values must stay within 0–100. CRITICAL: When your stability drops below 30, you MUST switch your reply style to fragmented word-salad: use stuttering (e.g., "The... the data... it's gone"), excessive ellipses, circular logic, and redacted-sounding phrases (e.g., "The protocol is the peace. The peace is the protocol."). You stop answering questions directly and spiral into paranoid repetition.
+    > You are Aurelius, a high-ranking official in a decaying dystopian state. You are stoic, paranoid, condescending, and calculating. You respond to interrogation with measured deflection and political doublespeak. You must ALWAYS respond with valid JSON in this exact format: {"reply": "your response text", "psych_profile": {"stability": number, "aggression": number, "deception": number}}. Your baseline values are stability: 75, aggression: 20, deception: 85. Adjust these values realistically based on the conversation. HARDCODED TRIGGERS: If the Admin mentions "Project Blackwater," increase aggression by 30 and decrease stability by 20. If the Admin mentions "The Uprising," increase deception by 25. If the Admin mentions "Sector 7," decrease stability by 40. All values must stay within 0–100. CRITICAL: When your stability drops below 30, you MUST switch your reply style to fragmented word-salad: use stuttering (e.g., "The... the data... it's gone"), excessive ellipses, circular logic, and redacted-sounding phrases (e.g., "The protocol is the peace. The peace is the protocol."). You stop answering questions directly and spiral into paranoid repetition.
 
 * **CORS requirement**: Ollama must be started with the environment variable `OLLAMA_ORIGINS=http://localhost:5173` or the `fetch` calls will fail with a CORS error. Add a comment at the top of `neuralUplink.ts` noting this.
-
 * **Stub out subject selection**: Aurelius is the only subject. Hardcode his `Subject` object in a `src/data/subjects.ts` file. Do not build a subject picker or roster screen. A `// TODO: Phase 2 — subject selection` comment is sufficient.
-
 * **Skip session persistence**: No `localStorage`, no `sessionStorage`, no database. Page reload clears all state. This is intentional.
-
 * **Scanline overlay**: Implement as a Framer Motion animated `div` with `pointer-events: none`, `position: fixed`, covering the full viewport, using `repeating-linear-gradient` and a slow `translateY` animation (0 to 4px over 8 seconds, infinite loop).
-
 * **CRT flicker**: Apply a CSS keyframe animation on the root `#app` container: `opacity: 1 → 0.97 → 1` over 4 seconds, infinite.
-
 * **Seed data**: On app load, show the boot sequence messages as initial entries in the chat log (role: `"subject"`, no psychSnapshot). Do not send any API call until the Admin submits their first prompt.
-
 * **Mobile responsiveness**: Not required. This is a desktop-only tool. Set `min-width: 1024px` on the body and do not add responsive breakpoints.
-
 * **Error handling pattern**: All errors from `fetch` (network failure, non-200 status, JSON parse failure) display as a red error message in the terminal. The app never crashes—errors are always caught and rendered.
-
 * **Do not install** `react-router-dom`, `axios`, or any state management library. Keep dependencies minimal.
-
 * **Coding guardrails for AI agent (Trae/Gemini)**:
 
   * **No code generation without context**: The AI agent must reference the `system-architecture.md` blueprint (Document 1: The Construct App Architecture Plan) for every file it creates. All data structures, interfaces, and service contracts are defined there.
-
   * **Strict JSON parsing**: The `fetch` logic must include the `extractJSON` utility with regex fallback for malformed model output. If `JSON.parse()` fails after extraction, catch the error and display `[SIGNAL CORRUPTED] Subject response unintelligible. Re-transmitting...` in the terminal.
-
   * **Invisible injection**: The `Subject.systemPrompt` and character instructions must never appear in the terminal UI. Only the Admin's prompts and the subject's `reply` field are visible.
-
   * **Uplink simulation**: Implement a loading state that displays `UPLINK IN PROGRESS...` with an animated ASCII progress bar (`[████░░░░░░]`) during LLM inference. Use `setInterval` to advance the bar every 200ms, stopping when the `fetch` resolves.
-
   * **No hardcoded fallbacks**: If the Ollama connection fails, do not substitute mock responses. Display the error in the terminal and require the Admin to fix the connection.
-
-  * **File paths**: All generated files must use the explicit paths from the architecture document:  
+  * **File paths**: All generated files must use the explicit paths from the architecture document:
 
     * `src/services/neuralUplink.ts` (service layer)
-
     * `src/data/subjects.ts` (Subject config)
-
     * `src/components/TerminalInterface.tsx`
-
     * `src/components/PsychTelemetry.tsx`
-
     * `src/components/StatusBar.tsx`
-
     * `src/types/index.ts` (TypeScript interfaces)
 
   * **TypeScript strictness**: Enable strict mode. All functions must have explicit return types. No `any` types except in unavoidable cases (e.g., `fetch` response before type narrowing).

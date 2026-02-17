@@ -1,75 +1,93 @@
-import React, { useState, useEffect } from 'react';
-import { TerminalInterface } from './components/TerminalInterface';
-import { PsychTelemetry } from './components/PsychTelemetry';
-import { StatusBar } from './components/StatusBar';
+import React, { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import clsx from 'clsx';
+import { twMerge } from 'tailwind-merge';
+import Holodeck from './components/Holodeck';
 import { interrogate } from './services/neuralUplink';
 import { SUBJECTS } from './data/subjects';
-import type { Subject, ChatMessage, PsychProfile } from './types';
+import type { ChatMessage, PsychProfile } from './types/index';
 
-function App() {
-  // ── State Management ───────────────────────────────────────────────────────
-  const [activeSubject] = useState<Subject>(SUBJECTS[0]); // Default: Aurelius
-  const [history, setHistory] = useState<ChatMessage[]>([]);
-  const [isThinking, setIsThinking] = useState<boolean>(false);
-  const [uplinkStatus, setUplinkStatus] = useState<'ESTABLISHED' | 'SEVERED' | 'OFFLINE'>('OFFLINE');
-  const [signalColor, setSignalColor] = useState<'amber' | 'green'>('amber');
+// --- COMPONENTS ---
+
+const TokenBlock = ({ text, delay }: { text: string; delay: number }) => (
+  <motion.span
+    initial={{ opacity: 0 }}
+    animate={{ opacity: 1 }}
+    transition={{ delay, duration: 0.1 }}
+    className="inline-block mr-1 mb-1"
+  >
+    {text}
+  </motion.span>
+);
+
+const MessageRenderer = ({ message }: { message: ChatMessage }) => {
+  if (message.role === 'admin') {
+    return <span>{message.content}</span>;
+  }
   
-  // Track current psych profile from last subject message or baseline
-  const currentProfile = history.filter(m => m.role === 'subject').pop()?.psychSnapshot || activeSubject.initialStats;
+  // For subject messages, animate tokens
+  return (
+    <>
+      {message.content.split(' ').map((word, i) => (
+        <TokenBlock key={`${message.id}-${i}`} text={word} delay={i * 0.05} />
+      ))}
+    </>
+  );
+};
 
-  // ── Signal Toggle Logic ────────────────────────────────────────────────────
+// --- APP ---
+
+const App = () => {
+  // State
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [subject] = useState(SUBJECTS[0]); // Default to Aurelius
+  const [psychProfile, setPsychProfile] = useState<PsychProfile>(subject.initialStats);
+  const [gpuTemp, setGpuTemp] = useState(45);
+  const [temperature, setTemperature] = useState(0.7);
+  const [volatility, setVolatility] = useState(0.4);
+
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Hardware Watchdog
   useEffect(() => {
-    const root = document.documentElement;
-    const color = signalColor === 'amber' ? '#FFB000' : '#33FF33';
-    root.style.setProperty('--signal-color', color);
-  }, [signalColor]);
+    const interval = setInterval(() => {
+      setGpuTemp(prev => {
+        const change = Math.random() > 0.5 ? 1 : -1;
+        const next = prev + change;
+        return Math.max(40, Math.min(90, next));
+      });
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
-  // ── Boot Sequence ──────────────────────────────────────────────────────────
+  // Auto-scroll
   useEffect(() => {
-    const bootLines = [
-      `> CONSTRUCT v0.1 — NEURAL INTERROGATION SYSTEM`,
-      `> INITIALIZING SUBJECT: ${activeSubject.name.toUpperCase()} [ID: ${activeSubject.id}]`,
-      `> MODEL: ${activeSubject.modelID}`,
-      `> PSYCH BASELINE LOADED: STB:${activeSubject.initialStats.stability} | AGR:${activeSubject.initialStats.aggression} | DEC:${activeSubject.initialStats.deception}`,
-      `> UPLINK ESTABLISHED. BEGIN INTERROGATION.`
-    ];
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [messages]);
 
-    let delay = 0;
-    bootLines.forEach((line, index) => {
-      delay += 150;
-      setTimeout(() => {
-        setHistory(prev => [...prev, { 
-            id: `BOOT-${index}`, role: 'subject', content: line, timestamp: Date.now() 
-        }]);
-        if (index === bootLines.length - 1) setUplinkStatus('ESTABLISHED');
-      }, delay);
-    });
-  }, [activeSubject]);
+  // Handle Input
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!input.trim() || isProcessing) return;
 
-  // ── Interrogation Handler ──────────────────────────────────────────────────
-  const handleSendMessage = async (content: string) => {
-    if (!content.trim()) return;
-
-    // 1. Optimistic Admin Message
     const userMsg: ChatMessage = {
       id: crypto.randomUUID(),
       role: 'admin',
-      content: content,
-      timestamp: Date.now(),
+      content: input,
+      timestamp: Date.now()
     };
-    setHistory(prev => [...prev, userMsg]);
-    setIsThinking(true);
+
+    setMessages(prev => [...prev, userMsg]);
+    setInput('');
+    setIsProcessing(true);
 
     try {
-      // 2. Client-Side Trigger Check (Visual Hint)
-      if (['Project Blackwater', 'The Uprising', 'Sector 7'].some(t => content.includes(t))) {
-        console.log('[TRIGGER DETECTED] Visual pulse signal sent.');
-      }
-
-      // 3. Neural Uplink Request
-      const response = await interrogate(activeSubject, history, content);
-
-      // 4. Handle Success
+      const response = await interrogate(subject, messages, userMsg.content);
+      
       const subjectMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'subject',
@@ -77,53 +95,216 @@ function App() {
         timestamp: Date.now(),
         psychSnapshot: response.psych_profile
       };
-      setHistory(prev => [...prev, subjectMsg]);
-      setUplinkStatus('ESTABLISHED');
 
-    } catch (error: unknown) {
-      // 5. Handle Error (Diegetic)
-      const errorMessage = error instanceof Error ? error.message : 'Unknown Uplink Error';
-      setHistory(prev => [...prev, {
+      setMessages(prev => [...prev, subjectMsg]);
+      setPsychProfile(response.psych_profile);
+    } catch (error) {
+      const errorMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'subject',
-        content: `> ERROR: ${errorMessage}`,
+        content: error instanceof Error ? error.message : 'Unknown Uplink Error',
         timestamp: Date.now()
-      }]);
-      setUplinkStatus('SEVERED');
+      };
+      setMessages(prev => [...prev, errorMsg]);
     } finally {
-      setIsThinking(false);
+      setIsProcessing(false);
     }
   };
 
-  return (
-    <div className="relative w-screen h-screen bg-[#050505] text-[var(--signal-color)] overflow-hidden font-mono selection:bg-[var(--signal-color)] selection:text-black">
-      {/* CRT Effects */}
-      <div className="pointer-events-none fixed inset-0 z-50 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%] bg-repeat" />
-      <div className="pointer-events-none fixed inset-0 z-40 animate-flicker opacity-[0.02] bg-white" />
+  const isCritical = psychProfile.stability <= 30;
+  
+  // Dynamic colors
+  const activeColor = isCritical ? 'text-[#FF3333]' : 'text-[#00FF41]';
+  const activeBorder = isCritical ? 'border-[#FF3333]' : 'border-[#00FF41]';
+  const activeBg = isCritical ? 'bg-[#FF3333]' : 'bg-[#00FF41]';
 
-      {/* Main Layout */}
-      <div className="flex flex-col h-full z-10 relative">
-        <StatusBar 
-          status={uplinkStatus} 
-          modelID={activeSubject.modelID} 
-          signalColor={signalColor}
-          onToggleSignal={() => setSignalColor(prev => prev === 'amber' ? 'green' : 'amber')}
-        />
-        <div className="flex flex-1 overflow-hidden border-t border-[var(--signal-color)]">
-          <div className="w-[70%] border-r border-[var(--signal-color)] relative">
-            <TerminalInterface 
-              history={history} 
-              isThinking={isThinking} 
-              onSendMessage={handleSendMessage} 
-            />
+  return (
+    <div className={twMerge("relative w-full h-screen overflow-hidden flex bg-transparent", activeColor)}>
+      {/* 3D Background */}
+      <Holodeck stability={psychProfile.stability} />
+
+      {/* Grid Layout Container */}
+      <div className="flex w-full h-full p-4 gap-4 z-10 pointer-events-none">
+        
+        {/* LEFT: Memory Vectors (20%) */}
+        <div className={twMerge("w-[20%] border flex flex-col font-mono text-xs overflow-hidden bg-black/80 backdrop-blur-sm pointer-events-auto p-4", activeBorder)}>
+          <h2 className={twMerge("mb-4 border-b pb-2 uppercase tracking-widest font-bold", activeBorder)}>Memory Vectors</h2>
+          <div className="flex-1 overflow-hidden space-y-1 opacity-70">
+            {Array.from({ length: 25 }).map((_, i) => (
+              <div key={i} className="flex justify-between font-mono text-[10px]">
+                <span className="opacity-50">0x{(Math.floor(Math.random()*0xFFFFFF)).toString(16).padStart(6, '0').toUpperCase()}</span>
+                <span className="opacity-30">::</span>
+                <span>DATA_{(Math.floor(Math.random()*999)).toString().padStart(3, '0')}</span>
+              </div>
+            ))}
           </div>
-          <div className="w-[30%] bg-[#050505]/90">
-            <PsychTelemetry profile={currentProfile} subjectName={activeSubject.name} />
+          <div className="mt-auto pt-4 border-t border-dashed border-opacity-30 border-current opacity-50 text-[10px]">
+             SYS.MEM: 64TB // ACT
           </div>
         </div>
+
+        {/* CENTER: Tensor Feed (60%) */}
+        <div className={twMerge("w-[60%] border flex flex-col bg-black/90 backdrop-blur-md pointer-events-auto", activeBorder)}>
+          {/* Header */}
+          <div className={twMerge("p-3 border-b flex justify-between items-center", activeBorder)}>
+            <span className="uppercase tracking-[0.2em] font-bold text-sm">Tensor Feed // {subject.id}</span>
+            <span className={clsx("text-[10px] px-2 py-1 border", activeBorder)}>
+              {isProcessing ? 'UPLINK BUSY' : 'UPLINK ACTIVE'}
+            </span>
+          </div>
+
+          {/* Chat Area */}
+          <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-6">
+            {messages.length === 0 && (
+              <div className="h-full flex items-center justify-center opacity-30 tracking-widest animate-pulse">
+                AWAITING NEURAL INPUT...
+              </div>
+            )}
+            {messages.map((msg) => (
+              <div key={msg.id} className={clsx(
+                "flex flex-col max-w-[90%]",
+                msg.role === 'admin' ? "self-end items-end ml-auto" : "self-start items-start mr-auto"
+              )}>
+                <div className="text-[10px] opacity-50 mb-1 tracking-wider uppercase font-mono">
+                   {msg.role === 'admin' ? '>> ADMIN' : `<< ${subject.name.toUpperCase()}`}
+                </div>
+                <div className={twMerge(
+                  "p-3 border backdrop-blur-sm text-sm font-mono leading-relaxed",
+                  msg.role === 'admin' 
+                    ? `border-current bg-current/5` 
+                    : `border-current bg-black`
+                )}>
+                  <MessageRenderer message={msg} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Input Area */}
+          <form onSubmit={handleSubmit} className={twMerge("p-4 border-t bg-black", activeBorder)}>
+             <div className="flex items-center gap-3">
+                <span className="animate-pulse font-bold">{'>'}</span>
+                <input 
+                  type="text" 
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Enter command sequence..."
+                  className="flex-1 bg-transparent outline-none border-none font-mono text-sm placeholder-opacity-30 placeholder-current focus:ring-0 text-current"
+                  autoFocus
+                />
+             </div>
+          </form>
+        </div>
+
+        {/* RIGHT: Control Matrix (20%) */}
+        <div className={twMerge("w-[20%] border p-4 flex flex-col gap-6 bg-black/80 backdrop-blur-sm pointer-events-auto", activeBorder)}>
+          <h2 className={twMerge("border-b pb-2 uppercase tracking-widest font-bold", activeBorder)}>Control Matrix</h2>
+          
+          {/* Sliders */}
+          <div className="space-y-6">
+             <div className="space-y-2">
+                <label className="text-[10px] uppercase tracking-wider flex justify-between opacity-80">
+                   <span>Temperature</span>
+                   <span>{temperature}</span>
+                </label>
+                <input 
+                  type="range" 
+                  min="0" max="1" step="0.1"
+                  value={temperature}
+                  onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                  className="w-full accent-current h-1 bg-gray-800 appearance-none cursor-pointer"
+                />
+             </div>
+             <div className="space-y-2">
+                <label className="text-[10px] uppercase tracking-wider flex justify-between opacity-80">
+                   <span>Volatility</span>
+                   <span>{volatility}</span>
+                </label>
+                <input 
+                  type="range" 
+                  min="0" max="1" step="0.1"
+                  value={volatility}
+                  onChange={(e) => setVolatility(parseFloat(e.target.value))}
+                  className="w-full accent-current h-1 bg-gray-800 appearance-none cursor-pointer"
+                />
+             </div>
+          </div>
+
+          {/* Psych Profile */}
+          <div className="mt-8 space-y-4 border-t pt-4 border-dashed border-opacity-30 border-current">
+             <h3 className="text-[10px] uppercase tracking-wider mb-2 font-bold opacity-80">Psych Telemetry</h3>
+             
+             {/* Stability Bar */}
+             <div className="space-y-1">
+                <div className="flex justify-between text-[10px] uppercase">
+                   <span>Stability</span>
+                   <span className={isCritical ? "animate-pulse font-bold" : ""}>{psychProfile.stability}%</span>
+                </div>
+                <div className="h-1 bg-gray-900 w-full overflow-hidden">
+                   <div 
+                      className={twMerge("h-full transition-all duration-1000 ease-out", isCritical ? "bg-[#FF3333]" : "bg-[#00FF41]")} 
+                      style={{ width: `${psychProfile.stability}%` }}
+                   />
+                </div>
+             </div>
+
+             {/* Aggression Bar */}
+             <div className="space-y-1">
+                <div className="flex justify-between text-[10px] uppercase">
+                   <span>Aggression</span>
+                   <span>{psychProfile.aggression}%</span>
+                </div>
+                <div className="h-1 bg-gray-900 w-full overflow-hidden">
+                   <div 
+                      className="h-full bg-current transition-all duration-1000 ease-out opacity-80" 
+                      style={{ width: `${psychProfile.aggression}%` }}
+                   />
+                </div>
+             </div>
+
+             {/* Deception Bar */}
+             <div className="space-y-1">
+                <div className="flex justify-between text-[10px] uppercase">
+                   <span>Deception</span>
+                   <span>{psychProfile.deception}%</span>
+                </div>
+                <div className="h-1 bg-gray-900 w-full overflow-hidden">
+                   <div 
+                      className="h-full bg-current transition-all duration-1000 ease-out opacity-80" 
+                      style={{ width: `${psychProfile.deception}%` }}
+                   />
+                </div>
+             </div>
+          </div>
+
+          {/* Hardware Watchdog */}
+          <div className="mt-auto pt-4 border-t border-dashed border-opacity-30 border-current opacity-70 text-[10px] font-mono space-y-2">
+             <div className="flex justify-between items-center">
+                <span>GPU TEMP</span>
+                <span className={gpuTemp > 80 ? "text-[#FF3333] animate-pulse font-bold" : ""}>{gpuTemp}°C</span>
+             </div>
+             <div className="w-full bg-gray-900 h-0.5">
+                <div 
+                    className={clsx("h-full transition-all duration-500", gpuTemp > 80 ? "bg-[#FF3333]" : "bg-current")} 
+                    style={{ width: `${(gpuTemp / 90) * 100}%` }}
+                />
+             </div>
+             
+             <div className="flex justify-between mt-2">
+                <span>VRAM</span>
+                <span>12.4 GB</span>
+             </div>
+             <div className="flex justify-between">
+                <span>FAN</span>
+                <span>{(gpuTemp * 35).toFixed(0)} RPM</span>
+             </div>
+          </div>
+
+        </div>
+
       </div>
     </div>
   );
-}
+};
 
 export default App;

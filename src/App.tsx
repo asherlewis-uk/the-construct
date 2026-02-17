@@ -173,21 +173,62 @@ const App = () => {
       <div className="flex w-full h-full p-4 gap-4 z-10 pointer-events-none">
         
         {/* LEFT: Memory Vectors (20%) */}
-        <div className={twMerge("w-[20%] border flex flex-col font-mono text-xs overflow-hidden bg-black/80 backdrop-blur-sm pointer-events-auto p-4", activeBorder)}>
-          <h2 className={twMerge("mb-4 border-b pb-2 uppercase tracking-widest font-bold", activeBorder)}>Memory Vectors</h2>
-          <div className="flex-1 overflow-hidden space-y-1 opacity-70">
-            {Array.from({ length: 25 }).map((_, i) => (
-              <div key={i} className="flex justify-between font-mono text-[10px]">
-                <span className="opacity-50">0x{(Math.floor(Math.random()*0xFFFFFF)).toString(16).padStart(6, '0').toUpperCase()}</span>
-                <span className="opacity-30">::</span>
-                <span>DATA_{(Math.floor(Math.random()*999)).toString().padStart(3, '0')}</span>
-              </div>
-            ))}
-          </div>
-          <div className="mt-auto pt-4 border-t border-dashed border-opacity-30 border-current opacity-50 text-[10px]">
-             SYS.MEM: 64TB // ACT
-          </div>
-        </div>
+        <div className={twMerge("w-[20%] border flex flex-col font-mono text-xs overflow-hidden bg-black/80 backdrop-blur-sm pointer-events-auto p-4", activeBorder)}> 
+           <h2 className={twMerge("mb-4 border-b pb-2 uppercase tracking-widest font-bold", activeBorder)}>Memory Vectors</h2> 
+           <div className="flex-1 overflow-hidden space-y-4 opacity-70 text-[10px]"> 
+             {/* SUBJECT IDENTITY INJECTION */} 
+             <div className="space-y-1"> 
+               <div className="flex justify-between"> 
+                 <span className="opacity-50">SUBJECT_ID</span> 
+                 <span>{subject.id}</span> 
+               </div> 
+               <div className="flex justify-between"> 
+                 <span className="opacity-50">CODENAME</span> 
+                 <span>{subject.name.toUpperCase()}</span> 
+               </div> 
+               <div className="flex justify-between"> 
+                 <span className="opacity-50">MODEL_BIND</span> 
+                 <span>{subject.modelID.split(':')[0].toUpperCase()}</span> 
+               </div> 
+             </div> 
+ 
+             <div className="border-t border-dashed border-opacity-30 border-current my-2"></div> 
+ 
+             {/* PSYCHOMETRIC BASELINES */} 
+             <div className="space-y-1"> 
+                <div className="flex justify-between"> 
+                 <span className="opacity-50">BASE_STABILITY</span> 
+                 <span>{subject.initialStats.stability}%</span> 
+               </div> 
+               <div className="flex justify-between"> 
+                 <span className="opacity-50">BASE_AGGRESSION</span> 
+                 <span>{subject.initialStats.aggression}%</span> 
+               </div> 
+               <div className="flex justify-between"> 
+                 <span className="opacity-50">BASE_DECEPTION</span> 
+                 <span>{subject.initialStats.deception}%</span> 
+               </div> 
+             </div> 
+ 
+              <div className="border-t border-dashed border-opacity-30 border-current my-2"></div> 
+ 
+              {/* LIVE UPLINK STATUS */} 
+              <div className="space-y-1"> 
+                <div className="flex justify-between"> 
+                  <span className="opacity-50">THEME</span> 
+                  <span>{subject.visualTheme.toUpperCase()}</span> 
+                </div> 
+                <div className="flex justify-between text-green-500 animate-pulse"> 
+                  <span className="opacity-50">CONNECTION</span> 
+                  <span>SECURE</span> 
+                </div> 
+              </div> 
+           </div> 
+           
+           <div className="mt-auto pt-4 border-t border-dashed border-opacity-30 border-current opacity-50 text-[10px]"> 
+              SYS.MEM: 64TB // ACT 
+           </div> 
+         </div>
 
         {/* CENTER: Tensor Feed (60%) */}
         <div className={twMerge("w-[60%] border flex flex-col bg-black/90 backdrop-blur-md pointer-events-auto", activeBorder)}>

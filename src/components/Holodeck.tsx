@@ -1,5 +1,5 @@
 import React, { useRef } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Stars, Grid } from '@react-three/drei';
 import * as THREE from 'three';
 
@@ -9,11 +9,12 @@ interface HolodeckProps {
 
 const Octahedron = ({ stability }: { stability: number }) => {
   const meshRef = useRef<THREE.Mesh>(null);
-  
+  const materialRef = useRef<THREE.MeshBasicMaterial>(null);
+  const { viewport } = useThree();
+
   // Terminal Green (#00FF41) vs Critical Red (#FF3333)
-  const isStable = stability > 30;
-  const color = isStable ? '#00FF41' : '#FF3333';
-  
+  const isStable = stability >= 30;
+
   useFrame((state, delta) => {
     if (meshRef.current) {
       // Rotation speed doubles if unstable
@@ -21,15 +22,29 @@ const Octahedron = ({ stability }: { stability: number }) => {
       meshRef.current.rotation.x += 0.2 * delta * speedMultiplier;
       meshRef.current.rotation.y += 0.3 * delta * speedMultiplier;
     }
+
+    // Pulse red color when unstable
+    if (materialRef.current && !isStable) {
+      const pulse = (Math.sin(state.clock.elapsedTime * 6) + 1) / 2;
+      materialRef.current.opacity = 0.3 + pulse * 0.5;
+      materialRef.current.color.setStyle('#FF3333');
+    } else if (materialRef.current) {
+      materialRef.current.opacity = 0.6;
+      materialRef.current.color.setStyle('#00FF41');
+    }
   });
 
+  // Scale octahedron relative to viewport so it resizes with the window
+  const scale = Math.min(viewport.width, viewport.height) / 5;
+
   return (
-    <mesh ref={meshRef}>
+    <mesh ref={meshRef} scale={scale}>
       <octahedronGeometry args={[2, 0]} />
-      <meshBasicMaterial 
-        color={color} 
-        wireframe 
-        transparent 
+      <meshBasicMaterial
+        ref={materialRef}
+        color={isStable ? '#00FF41' : '#FF3333'}
+        wireframe
+        transparent
         opacity={0.6}
       />
     </mesh>
@@ -39,29 +54,31 @@ const Octahedron = ({ stability }: { stability: number }) => {
 const Holodeck: React.FC<HolodeckProps> = ({ stability }) => {
   return (
     <div className="fixed inset-0 -z-10 pointer-events-none">
-      <Canvas camera={{ position: [0, 0, 5] }}>
-        <color attach="background" args={['#050505']} />
-        
+      <Canvas
+        camera={{ position: [0, 0, 5] }}
+        dpr={[1, 2]}
+        gl={{ alpha: true, antialias: true }}
+      >
         <Octahedron stability={stability} />
-        
-        <Stars 
-          radius={100} 
-          depth={50} 
-          count={5000} 
-          factor={4} 
-          saturation={0} 
-          fade 
-          speed={0.5} 
+
+        <Stars
+          radius={100}
+          depth={50}
+          count={5000}
+          factor={4}
+          saturation={0}
+          fade
+          speed={0.5}
         />
-        
-        <Grid 
-          position={[0, -2, 0]} 
-          args={[20, 20]} 
-          cellColor="#111" 
-          sectionColor="#222" 
+
+        <Grid
+          position={[0, -2, 0]}
+          args={[20, 20]}
+          cellColor="#111"
+          sectionColor="#222"
           fadeDistance={15}
         />
-        
+
         <ambientLight intensity={0.5} />
       </Canvas>
     </div>

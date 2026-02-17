@@ -2,52 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --terminal-green: #00FF41;
-  --critical-red: #FF3333;
-  --bg-dark: #050505;
+@layer base {
+  html, body {
+    @apply bg-background text-primary font-mono;
+    /* Force square corners on the entire document */
+    border-radius: 0px !important;
+  }
+
+  * {
+    font-family: theme('fontFamily.mono');
+    border-radius: 0px !important;
+  }
 }
 
-body {
-  margin: 0;
-  padding: 0;
-  background-color: var(--bg-dark);
-  color: var(--terminal-green);
-  font-family: 'JetBrains Mono', monospace;
-  overflow: hidden;
-  height: 100vh;
+.scanline {
+  position: fixed;
+  top: 0;
+  left: 0;
   width: 100vw;
-}
-
-/* Zero-G Brutalism - Global Overrides */
-* {
-  box-sizing: border-box;
-  border-radius: 0 !important; /* No rounded corners */
-  box-shadow: none !important; /* No shadows */
-}
-
-/* Scrollbar Styling */
-::-webkit-scrollbar {
-  width: 4px;
-}
-::-webkit-scrollbar-track {
-  background: var(--bg-dark);
-}
-::-webkit-scrollbar-thumb {
-  background: var(--terminal-green);
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #fff;
-}
-
-.text-critical {
-  color: var(--critical-red);
-}
-
-.border-terminal {
-  border: 1px solid var(--terminal-green);
-}
-
-.border-critical {
-  border: 1px solid var(--critical-red);
+  height: 100vh;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 0) 50%,
+    rgba(0, 0, 0, 0.2) 50%,
+    rgba(0, 0, 0, 0.2)
+  );
+  background-size: 100% 4px;
+  pointer-events: none;
+  z-index: 50;
+  opacity: 0.15;
 }

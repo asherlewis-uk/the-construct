@@ -20,16 +20,34 @@ const TokenBlock = ({ text, delay }: { text: string; delay: number }) => (
   </motion.span>
 );
 
-const MessageRenderer = ({ message }: { message: ChatMessage }) => {
+const MessageRenderer = ({ 
+  message, 
+  streamingMessageId, 
+  streamingContent 
+}: { 
+  message: ChatMessage;
+  streamingMessageId: string | null;
+  streamingContent: string;
+}) => {
+  const isStreaming = streamingMessageId === message.id;
+  const content = isStreaming ? streamingContent : message.content;
+  
   if (message.role === 'admin') {
-    return <span>{message.content}</span>;
+    return <span>{content}</span>;
   }
   
   // For subject messages, animate tokens
+  // When streaming, don't add animation delay (tokens appear as they arrive)
+  // When not streaming, stagger the animation for visual effect
+  const words = content.split(' ').filter(w => w.trim());
   return (
     <>
-      {message.content.split(' ').map((word, i) => (
-        <TokenBlock key={`${message.id}-${i}`} text={word} delay={i * 0.05} />
+      {words.map((word, i) => (
+        <TokenBlock 
+          key={`${message.id}-${i}`} 
+          text={word} 
+          delay={isStreaming ? 0 : i * 0.05} 
+        />
       ))}
     </>
   );
@@ -47,6 +65,10 @@ const App = () => {
   const [gpuTemp, setGpuTemp] = useState(45);
   const [temperature, setTemperature] = useState(0.7);
   const [volatility, setVolatility] = useState(0.4);
+  
+  // Streaming state for token visualization
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
+  const [streamingContent, setStreamingContent] = useState<string>('');
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -62,12 +84,32 @@ const App = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Auto-scroll
+  // Auto-scroll (triggered by messages OR streaming content updates)
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, streamingContent]);
+
+  // Token Stream Simulator
+  // Progressively displays tokens from a complete response to simulate real-time data feed
+  const simulateTokenStream = async (text: string, messageId: string) => {
+    const tokens = text.split(' ').filter(t => t.trim());
+    let accumulated = '';
+    
+    for (let i = 0; i < tokens.length; i++) {
+      accumulated += (i > 0 ? ' ' : '') + tokens[i];
+      setStreamingContent(accumulated);
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    
+    // Streaming complete - update actual message content
+    setMessages(prev => prev.map(msg => 
+      msg.id === messageId ? { ...msg, content: text } : msg
+    ));
+    setStreamingMessageId(null);
+    setStreamingContent('');
+  };
 
   // Handle Input
   const handleSubmit = async (e: React.FormEvent) => {
@@ -91,13 +133,17 @@ const App = () => {
       const subjectMsg: ChatMessage = {
         id: crypto.randomUUID(),
         role: 'subject',
-        content: response.reply,
+        content: '', // Start empty - will be filled by streaming simulation
         timestamp: Date.now(),
         psychSnapshot: response.psych_profile
       };
 
       setMessages(prev => [...prev, subjectMsg]);
       setPsychProfile(response.psych_profile);
+      
+      // Start token streaming simulation
+      setStreamingMessageId(subjectMsg.id);
+      await simulateTokenStream(response.reply, subjectMsg.id);
     } catch (error) {
       const errorMsg: ChatMessage = {
         id: crypto.randomUUID(),
@@ -174,7 +220,11 @@ const App = () => {
                     ? `border-current bg-current/5` 
                     : `border-current bg-black`
                 )}>
-                  <MessageRenderer message={msg} />
+                  <MessageRenderer 
+                    message={msg} 
+                    streamingMessageId={streamingMessageId}
+                    streamingContent={streamingContent}
+                  />
                 </div>
               </div>
             ))}

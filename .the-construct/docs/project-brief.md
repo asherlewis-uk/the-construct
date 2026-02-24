@@ -16,7 +16,7 @@ The Construct is a real-time psychometric interrogation simulator. The user acts
   - **Accent / Alert**: `#FF3333` (red) used exclusively for the Stability < 30 danger state on the radar chart.
   - **Muted text**: Primary color at 40% opacity for timestamps, labels, and secondary information.
 
-- **Theme**: Dark mode only. Zero-G Brutalist aesthetic overlays a 3D background layer. The visual style is hard-edged, monochromatic, and information-dense. No rounded corners (`border-radius: 0px !important`), no drop shadows, no modern UI conventions. The "Zero-G Brutalist" aesthetic is rendered on top of the Holodeck 3D visualization.
+- **Theme**: Dark mode only. Zero-G Brutalist aesthetic rendered on top of the Holodeck 3D background layer. The visual style is hard-edged, monochromatic, and information-dense. No rounded corners (`border-radius: 0px !important`), no drop shadows, no modern UI conventions.
 
 - **Layout style**: Full-screen, edge-to-edge, no padding on the outer container. Two-panel split: Terminal Interface on the left (70% width), PsychTelemetry HUD on the right (30% width). A thin 1px border in the signal color separates the panels. A StatusBar spans the full width at the top (height: 40px). The terminal input is fixed to the bottom of the left panel.
 

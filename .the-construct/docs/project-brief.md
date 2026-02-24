@@ -16,7 +16,7 @@ The Construct is a real-time psychometric interrogation simulator. The user acts
   - **Accent / Alert**: `#FF3333` (red) used exclusively for the Stability < 30 danger state on the radar chart.
   - **Muted text**: Primary color at 40% opacity for timestamps, labels, and secondary information.
 
-- **Theme**: Dark mode only. Zero-G Brutalist aesthetic enforced throughout. No rounded corners (`border-radius: 0px !important`), no drop shadows, no modern UI conventions. The visual style is hard-edged, monochromatic, and information-dense.
+- **Theme**: Dark mode only. Zero-G Brutalist aesthetic overlays a 3D background layer. The visual style is hard-edged, monochromatic, and information-dense. No rounded corners (`border-radius: 0px !important`), no drop shadows, no modern UI conventions. The "Zero-G Brutalist" aesthetic is rendered on top of the Holodeck 3D visualization.
 
 - **Layout style**: Full-screen, edge-to-edge, no padding on the outer container. Two-panel split: Terminal Interface on the left (70% width), PsychTelemetry HUD on the right (30% width). A thin 1px border in the signal color separates the panels. A StatusBar spans the full width at the top (height: 40px). The terminal input is fixed to the bottom of the left panel.
 
@@ -80,6 +80,8 @@ This is a single-page application. There is no routing, no `react-router`, and n
 
 No sidebar. No tab bar. No breadcrumbs. No authentication gates. The app loads directly into the interrogation interface.
 
+**Phase 2 Note**: A `SubjectSelector` component exists in the file structure (as per system-architecture.md) but is currently stubbed out or commented out for Phase 1. Multi-subject selection will be activated in Phase 2.
+
 ## Core User Flows
 
 ## Flow 1: App Initialization
@@ -127,7 +129,8 @@ No database. No backend server. All data lives in React `useState` and is lost o
 **Entities (TypeScript interfaces):**
 
 - **Subject** — `id: string`, `name: string`, `modelID: string` (Ollama model tag), `systemPrompt: string`, `visualTheme: "cyber-noir"`, `initialStats: PsychProfile`
-- **PsychProfile** — `stability: number` (0–100), `aggression: number` (0–100), `deception: number` (0–100)
+- **PsychProfile** — `stability: number` (0–100), `aggression: number` (0–100), `deception: number` (0–100), `isCritical: boolean`
+  - **Note**: `isCritical` is derived logic computed as `true` when `stability < 30`. This flag is used to drive the "Red Zone" UI states, including rendering the Stability axis in `#FF3333` (red) on the radar chart and applying pulsing opacity animations to the Stability numeric readout.
 - **ChatMessage** — `id: string`, `role: "admin" | "subject"`, `content: string`, `timestamp: Date`, `psychSnapshot?: PsychProfile` (attached to subject messages only)
 - **OllamaResponse** — `reply: string`, `psych_profile: PsychProfile`
 
@@ -155,6 +158,8 @@ No database. No backend server. All data lives in React `useState` and is lost o
 - `extractJSON` utility: scans the string for the first `{` and last `}`, slices that substring, and returns it. This strips any LLM preamble text before the JSON object.
 
 ## Key Components
+
+**Holodeck**: A generic 3D visualization layer (rotating octahedron, stars, grid) rendered via React Three Fiber or similar, strictly positioned as a fixed background (z-index: -1) behind the Terminal and HUD. It must not interfere with the 70/30 split layout. This is a purely visual background layer that provides ambient depth to the interface.
 
 **TerminalInterface**Scrolling div with `overflow-y: auto` and `scroll-behavior: smooth`. Auto-scrolls to bottom on new messages. Each message is a `MessageBubble` component showing the role prefix (`[ADMIN]:` or `[AURELIUS]:`), the content, and a muted timestamp. Admin messages render in full signal color. Subject messages render in signal color at 85% opacity. The input bar is a single-line `<input>` at the bottom with no visible border—just an underline in the signal color. The blinking `█` cursor renders as a `<span>` with CSS `animation: blink 1s step-end infinite`. During loading, the input is replaced with the `UPLINK IN PROGRESS...` text and an animated progress bar built from `█` and `░` characters, advancing via a `setInterval` that fills the bar over the fetch duration.
 
@@ -226,15 +231,16 @@ This handles cases where the model adds conversational "chatter" before or after
   - **No hardcoded fallbacks**: If the Ollama connection fails, do not substitute mock responses. Display the error in the terminal and require the Admin to fix the connection.
   - **File paths & Current Architecture**:
     - **ACTIVE IMPLEMENTATION:**
-      - `src/App.tsx` — Root component with inline Terminal/PsychTelemetry panels
+      - `src/App.tsx` — Root state manager
       - `src/components/Holodeck.tsx` — 3D visualization layer (rotating octahedron, stars, grid)
+      - `src/components/TerminalInterface.tsx` — Chat input/output with scrolling message log
+      - `src/components/PsychTelemetry.tsx` — Radar chart + numeric readouts
+      - `src/components/StatusBar.tsx` — Connection status, active modelID, uplink indicator
       - `src/services/neuralUplink.ts` — Ollama API service layer
       - `src/data/subjects.ts` — Subject configuration (Aurelius)
       - `src/types/index.ts` — TypeScript interfaces
 
-    - **PLANNED REFACTORS (Phase 2):**
-      - `src/components/TerminalInterface.tsx` — Extract from App.tsx
-      - `src/components/PsychTelemetry.tsx` — Extract from App.tsx
-      - `src/components/StatusBar.tsx` — Extract from App.tsx
+    - **PLANNED (Phase 2):**
+      - `src/components/SubjectSelector.tsx` — Sidebar/top bar to switch active subject (currently stubbed)
 
   - **TypeScript strictness**: Enable strict mode. All functions must have explicit return types. No `any` types except in unavoidable cases (e.g., `fetch` response before type narrowing).
